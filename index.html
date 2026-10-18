@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CYBERARCADE — Vraie Auth Supabase & Liquid Glass</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg-dark: #030509;
+      --glass-bg: rgba(255, 255, 255, 0.04);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --glass-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-pink: #ff007f;
+      --accent-purple: #7928ca;
+      --text-main: #ffffff;
+      --text-muted: #94a3b8;
+      
+      --font-main: 'Plus Jakarta Sans', sans-serif;
+      --font-heading: 'Orbitron', sans-serif;
+      --radius-ios: 28px;
+      --radius-full: 9999px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background-color: var(--bg-dark); color: var(--text-main);
+      font-family: var(--font-main); min-height: 100vh;
+      display: flex; flex-direction: column; overflow-x: hidden;
+    }
+
+    /* ARRIÈRE-PLAN LIQUIDE IOS 26 */
+    .liquid-bg { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.4; animation: float 18s infinite alternate ease-in-out; }
+    .blob-1 { width: 450px; height: 450px; background: var(--accent-purple); top: -100px; left: -100px; }
+    .blob-2 { width: 500px; height: 500px; background: var(--accent-cyan); bottom: -150px; right: -100px; animation-delay: -5s; }
+
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(60px, 80px) scale(1.15); }
+    }
+
+    .liquid-glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(35px) saturate(190%);
+      -webkit-backdrop-filter: blur(35px) saturate(190%);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      border-radius: var(--radius-ios);
+    }
+
+    button, a { cursor: pointer; touch-action: manipulation; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    button:active { transform: scale(0.94); }
+
+    /* HEADER */
+    .header {
+      position: sticky; top: 12px; z-index: 100;
+      margin: 0 auto; width: calc(100% - 24px); max-width: 1200px;
+      padding: 0.8rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-family: var(--font-heading); font-size: 1.2rem; font-weight: 900;
+      background: linear-gradient(135deg, #fff, var(--accent-cyan));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .nav-desktop { display: flex; gap: 0.4rem; }
+    .nav-btn {
+      padding: 0.6rem 1.2rem; border-radius: var(--radius-full);
+      font-size: 0.85rem; font-weight: 700; color: var(--text-muted); border: none; background: none;
+    }
+    .nav-btn.active, .nav-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #000; font-weight: 800; padding: 0.65rem 1.4rem;
+      border-radius: var(--radius-full); border: none;
+      box-shadow: 0 8px 25px rgba(0, 242, 254, 0.3);
+    }
+
+    /* MAIN CONTENT */
+    main { flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; padding: 2rem 1rem 6rem 1rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block !important; animation: iosSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    @keyframes iosSlide {
+      from { opacity: 0; transform: translateY(15px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+    .game-card { overflow: hidden; display: flex; flex-direction: column; position: relative; }
+    .card-thumb { width: 100%; height: 160px; object-fit: cover; background: #000; }
+    .card-category-tag {
+      position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px); padding: 0.3rem 0.7rem; border-radius: var(--radius-full);
+      font-size: 0.7rem; font-weight: 800; color: var(--accent-cyan); border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .card-body { padding: 1.2rem; display: flex; flex-direction: column; flex: 1; }
+    .card-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 0.2rem; }
+    .card-author { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+    /* FORMULAIRES */
+    .form-container { max-width: 650px; margin: 0 auto; padding: 2rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-label { display: block; font-weight: 700; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted); }
+    .form-control {
+      width: 100%; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--glass-border);
+      border-radius: 16px; padding: 0.9rem 1.2rem; color: #fff; font-size: 0.95rem; outline: none;
+    }
+    .form-control:focus { border-color: var(--accent-cyan); }
+
+    /* LECTEUR FULLSCREEN AVEC CROIX ROUGE DISCRÈTE */
+    .fullscreen-player-overlay {
+      position: fixed; inset: 0; background: #000; z-index: 99999;
+      display: none; flex-direction: column; justify-content: center; align-items: center;
+    }
+    .fullscreen-player-overlay.active { display: flex; }
+    .fullscreen-iframe { width: 100vw; height: 100vh; border: none; }
+
+    .close-fullscreen-btn {
+      position: fixed; top: 16px; right: 16px; z-index: 100000;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(255, 0, 85, 0.25); border: 1px solid rgba(255, 0, 85, 0.5);
+      color: #ff0055; display: grid; place-items: center; font-size: 16px;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      cursor: pointer; opacity: 0.8; transition: all 0.2s ease;
+    }
+    .close-fullscreen-btn:hover { opacity: 1; transform: scale(1.1); background: #ff0055; color: #fff; }
+
+    /* BOTTOM NAV MOBILE */
+    .mobile-bottom-nav {
+      display: none; position: fixed; bottom: 12px; left: 12px; right: 12px; height: 65px;
+      z-index: 500; justify-content: space-around; align-items: center;
+    }
+    .mobile-nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; color: var(--text-muted); font-size: 0.7rem; font-weight: 700;
+      width: 25%; height: 100%; border: none; background: none;
+    }
+    .mobile-nav-item.active { color: var(--accent-cyan); }
+
+    @media (max-width: 768px) {
+      .nav-desktop { display: none; }
+      .mobile-bottom-nav { display: flex; }
+      main { padding-bottom: 6rem; }
+      .games-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+      .card-thumb { height: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header liquid-glass">
+    <div class="logo">
+      <div style="width:30px; height:30px; background:linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); border-radius:10px; display:grid; place-items:center; color:#fff; font-size:0.9rem;">🎮</div>
+      CYBERARCADE
+    </div>
+
+    <nav class="nav-desktop">
+      <button class="nav-btn btn-home active" onclick="switchTab('home')">Accueil</button>
+      <button class="nav-btn btn-explore" onclick="switchTab('explore')">Catalogue</button>
+      <button class="nav-btn btn-upload" onclick="switchTab('upload')">Publier</button>
+      <button class="nav-btn btn-profile" onclick="switchTab('profile')">Profil</button>
+    </nav>
+
+    <div id="auth-actions">
+      <button class="btn-primary" onclick="openAuthModal('login')">Se connecter</button>
+    </div>
+  </header>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-bottom-nav liquid-glass">
+    <button class="mobile-nav-item btn-home active" onclick="switchTab('home')"><span style="font-size:1.2rem;">🏠</span>Accueil</button>
+    <button class="mobile-nav-item btn-explore" onclick="switchTab('explore')"><span style="font-size:1.2rem;">🕹️</span>Catalogue</button>
+    <button class="mobile-nav-item btn-upload" onclick="switchTab('upload')"><span style="font-size:1.2rem;">📤</span>Publier</button>
+    <button class="mobile-nav-item btn-profile" onclick="switchTab('profile')"><span style="font-size:1.2rem;">👤</span>Profil</button>
+  </nav>
+
+  <main>
+    <!-- 1. ACCUEIL -->
+    <section id="tab-home" class="tab-content active">
+      <div class="liquid-glass" style="padding: 2rem; margin-bottom: 2rem;">
+        <span style="background: rgba(0, 242, 254, 0.15); border: 1px solid var(--accent-cyan); padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 800; color: var(--accent-cyan);">
+          🌐 SUPABASE REAL AUTH & DATABASE
+        </span>
+        <h1 style="font-family: var(--font-heading); font-size: 2rem; margin-top: 0.6rem;">Plateforme de Jeux HTML5</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.4rem; margin-bottom: 1.5rem;">Créez un compte, validez votre e-mail et publiez vos créations jouables en plein écran.</p>
+        <button class="btn-primary" onclick="switchTab('upload')">🚀 Publier un jeu</button>
+      </div>
+
+      <h2 style="font-family: var(--font-heading); font-size: 1.2rem;">🔥 Derniers Jeux Publiés</h2>
+      <div class="games-grid" id="home-games-grid"></div>
+    </section>
+
+    <!-- 2. CATALOGUE -->
+    <section id="tab-explore" class="tab-content">
+      <h2 style="font-family: var(--font-heading); font-size: 1.4rem;">🕹️ Catalogue Complet</h2>
+      <div class="games-grid" id="explore-games-grid"></div>
+    </section>
+
+    <!-- 3. PUBLICATION -->
+    <section id="tab-upload" class="tab-content">
+      <div class="form-container liquid-glass">
+        <h2 style="font-family: var(--font-heading); font-size: 1.4rem; margin-bottom: 0.4rem;">🚀 Publier un jeu</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">L'image du jeu est générée automatiquement à partir de son titre.</p>
+
+        <form id="upload-form">
+          <div class="form-group">
+            <label class="form-label">Titre du jeu</label>
+            <input type="text" id="upload-title" class="form-control" placeholder="ex: Neon Shooter 3D" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Catégorie</label>
+            <select id="upload-category" class="form-control" required>
+              <option value="Action">Action</option>
+              <option value="Arcade">Arcade</option>
+              <option value="Réflexion">Réflexion</option>
+              <option value="Mini-jeux">Mini-jeux</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description & Commandes</label>
+            <textarea id="upload-desc" class="form-control" style="min-height: 80px;" placeholder="Explication des touches..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Code HTML / Canvas autonome du jeu</label>
+            <textarea id="upload-code" class="form-control" style="font-family:monospace; font-size:0.8rem; min-height:160px;" placeholder="<!DOCTYPE html><html><body>..." required></textarea>
+          </div>
+          <button type="submit" class="btn-primary" style="width:100%; justify-content:center; padding:0.9rem;">✨ Enregistrer en Base de Données</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 4. PROFIL -->
+    <section id="tab-profile" class="tab-content">
+      <div class="liquid-glass" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.2rem; margin-bottom: 1.5rem;">
+        <img id="profile-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest" style="width: 65px; height: 65px; border-radius: 50%; border: 2px solid var(--accent-cyan);">
+        <div>
+          <h2 id="profile-username" style="font-family: var(--font-heading); font-size: 1.2rem;">Non connecté</h2>
+          <p id="profile-email" style="color: var(--text-muted); font-size: 0.85rem;">Connectez-vous pour voir vos jeux</p>
+          <button id="btn-logout" onclick="logout()" class="btn-primary" style="margin-top:0.6rem; padding:0.3rem 0.8rem; font-size:0.75rem; display:none; background:#ff0055; color:#fff;">Se déconnecter</button>
+        </div>
+      </div>
+
+      <h3 style="font-family: var(--font-heading); font-size: 1.1rem;">📂 Mes Jeux Publiés</h3>
+      <div class="games-grid" id="my-games-grid"></div>
+    </section>
+  </main>
+
+  <!-- MODAL AUTHENTIFICATION VRAIE (CONNEXION & INSCRIPTION AVEC EMAIL) -->
+  <div class="fullscreen-player-overlay" id="auth-modal" style="background: rgba(0,0,0,0.85); backdrop-filter: blur(25px);">
+    <div class="liquid-glass" style="padding: 2rem; width: 90%; max-width: 420px; position: relative;">
+      <button onclick="closeAuthModal()" style="position: absolute; top: 15px; right: 15px; color: #fff; border:none; background:none; font-size: 1.5rem;">&times;</button>
+      
+      <h3 id="auth-title" style="font-family: var(--font-heading); margin-bottom: 0.5rem;">Connexion</h3>
+      <p id="auth-subtitle" style="color:var(--text-muted); font-size:0.8rem; margin-bottom: 1.5rem;">Entrez vos identifiants réels Supabase.</p>
+
+      <div id="auth-status-message" style="display:none; padding:0.8rem; border-radius:12px; background:rgba(0,242,254,0.15); border:1px solid var(--accent-cyan); font-size:0.8rem; margin-bottom:1rem; color:#fff;"></div>
+
+      <form id="auth-form">
+        <div class="form-group" id="group-username" style="display:none;">
+          <label class="form-label">Nom d'utilisateur (Pseudo)</label>
+          <input type="text" id="auth-username" class="form-control" placeholder="GamerOne">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Adresse E-mail réelle</label>
+          <input type="email" id="auth-email" class="form-control" placeholder="nom@exemple.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <input type="password" id="auth-password" class="form-control" placeholder="••••••••" required>
+        </div>
+        
+        <button type="submit" class="btn-primary" id="auth-submit-btn" style="width: 100%; margin-top:0.5rem;">Se connecter</button>
+      </form>
+
+      <div style="margin-top: 1.2rem; text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+        <span id="auth-toggle-label">Pas encore de compte ?</span>
+        <button type="button" onclick="toggleAuthMode()" style="color: var(--accent-cyan); font-weight: 800; border:none; background:none; text-decoration:underline;" id="auth-toggle-btn">S'inscrire</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIGURATION MODAL SUPABASE (Si pas encore renseigné) -->
+  <div class="fullscreen-player-overlay" id="config-modal" style="background: rgba(0,0,0,0.9);">
+    <div class="liquid-glass" style="padding: 2rem; width: 90%; max-width: 450px;">
+      <h3 style="font-family: var(--font-heading); margin-bottom: 0.5rem;">⚡ Configuration Supabase</h3>
+      <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom: 1.5rem;">Entrez les clés API de votre projet Supabase pour activer la Vraie Inscription et la Base de Données.</p>
+      
+      <div class="form-group">
+        <label class="form-label">URL du Projet (ex: https://xyz.supabase.co)</label>
+        <input type="text" id="cfg-url" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Clef d'API Anon (anon public)</label>
+        <input type="text" id="cfg-key" class="form-control">
+      </div>
+      <button class="btn-primary" style="width:100%; margin-top:1rem;" onclick="saveConfig()">Sauvegarder et Activer</button>
+    </div>
+  </div>
+
+  <!-- LECTEUR PLEIN ÉCRAN + CROIX ROUGE DISCRÈTE -->
+  <div class="fullscreen-player-overlay" id="fullscreen-player">
+    <div class="close-fullscreen-btn" onclick="exitFullscreenGame()" title="Quitter le jeu">❌</div>
+    <iframe id="fullscreen-iframe" class="fullscreen-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. INITIALISATION SUPABASE REAL AUTH & DATABASE
+       ========================================================================== */
+    let SUPABASE_URL = localStorage.getItem('REAL_SB_URL') || '';
+    let SUPABASE_KEY = localStorage.getItem('REAL_SB_KEY') || '';
+    let supabase = null;
+
+    if (SUPABASE_URL && SUPABASE_KEY) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+      document.getElementById('config-modal').classList.add('active');
+    }
+
+    function saveConfig() {
+      const url = document.getElementById('cfg-url').value.trim();
+      const key = document.getElementById('cfg-key').value.trim();
+      if (url && key) {
+        localStorage.setItem('REAL_SB_URL', url);
+        localStorage.setItem('REAL_SB_KEY', key);
+        location.reload();
+      }
+    }
+
+    let currentUser = null;
+    let isSignUpMode = false;
+
+    /* LISTEN SESSION STATE */
+    async function initAuthSession() {
+      if (!supabase) return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      handleUserSession(session?.user || null);
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        handleUserSession(session?.user || null);
+      });
+    }
+
+    function handleUserSession(user) {
+      currentUser = user;
+      const authActions = document.getElementById('auth-actions');
+
+      if (user) {
+        const username = user.user_metadata?.username || user.email.split('@')[0];
+        authActions.innerHTML = `<button class="btn-primary" onclick="switchTab('profile')">👤 ${username}</button>`;
+        
+        document.getElementById('profile-username').textContent = username;
+        document.getElementById('profile-email').textContent = user.email + " (Compte Vérifié)";
+        document.getElementById('profile-avatar').src = `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`;
+        document.getElementById('btn-logout').style.display = 'inline-block';
+
+        loadGames();
+      } else {
+        authActions.innerHTML = `<button class="btn-primary" onclick="openAuthModal('login')">Se connecter</button>`;
+        document.getElementById('profile-username').textContent = "Non connecté";
+        document.getElementById('profile-email').textContent = "Connectez-vous pour publier des jeux";
+        document.getElementById('btn-logout').style.display = 'none';
+        loadGames();
+      }
+    }
+
+    /* ==========================================================================
+       2. VRAIE CONNEXION / VRAIE INSCRIPTION (AVEC E-MAIL)
+       ========================================================================== */
+    function openAuthModal(mode) {
+      isSignUpMode = (mode === 'signup');
+      updateAuthModalUI();
+      document.getElementById('auth-modal').classList.add('active');
+    }
+
+    function closeAuthModal() { document.getElementById('auth-modal').classList.remove('active'); }
+
+    function toggleAuthMode() {
+      isSignUpMode = !isSignUpMode;
+      updateAuthModalUI();
+    }
+
+    function updateAuthModalUI() {
+      document.getElementById('auth-title').textContent = isSignUpMode ? "Créer un compte" : "Connexion";
+      document.getElementById('auth-subtitle').textContent = isSignUpMode ? "Un e-mail de confirmation vous sera envoyé." : "Connectez-vous avec vos identifiants réels.";
+      document.getElementById('auth-submit-btn').textContent = isSignUpMode ? "S'inscrire" : "Se connecter";
+      document.getElementById('group-username').style.display = isSignUpMode ? "block" : "none";
+      document.getElementById('auth-toggle-label').textContent = isSignUpMode ? "Déjà inscrit ?" : "Pas encore de compte ?";
+      document.getElementById('auth-toggle-btn').textContent = isSignUpMode ? "Se connecter" : "S'inscrire";
+      document.getElementById('auth-status-message').style.display = "none";
+    }
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!supabase) return alert("Veuillez d'abord configurer Supabase !");
+
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const username = document.getElementById('auth-username').value;
+      const msgBox = document.getElementById('auth-status-message');
+
+      msgBox.style.display = "block";
+      msgBox.textContent = "Traitement en cours...";
+
+      try {
+        if (isSignUpMode) {
+          // VRAIE INSCRIPTION SUPABASE
+          const { data, error } = await supabase.auth.signUp({
+            email, password,
+            options: { data: { username: username || email.split('@')[0] } }
+          });
+
+          if (error) throw error;
+
+          msgBox.style.background = "rgba(0, 242, 254, 0.2)";
+          msgBox.innerHTML = "📧 <b>Email de confirmation envoyé !</b><br>Rendez-vous dans votre boîte mail pour valider votre inscription avant de vous connecter.";
+        } else {
+          // VRAIE CONNEXION SUPABASE
+          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+
+          closeAuthModal();
+        }
+      } catch (err) {
+        msgBox.style.background = "rgba(255, 0, 85, 0.2)";
+        msgBox.textContent = "❌ Erreur : " + err.message;
+      }
+    });
+
+    async function logout() {
+      if (supabase) await supabase.auth.signOut();
+    }
+
+    /* ==========================================================================
+       3. GENERATION D'IMAGE AUTOMATIQUE & BASE DE DONNÉES
+       ========================================================================== */
+    function generateAutoCover(title, category) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 600; canvas.height = 350;
+      const ctx = canvas.getContext('2d');
+
+      const grad = ctx.createLinearGradient(0, 0, 600, 350);
+      grad.addColorStop(0, '#00f2fe'); grad.addColorStop(0.5, '#7928ca'); grad.addColorStop(1, '#ff007f');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 600, 350);
+
+      ctx.fillStyle = 'rgba(7, 9, 14, 0.65)';
+      ctx.fillRect(0, 0, 600, 350);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 36px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(title.toUpperCase(), 300, 160);
+
+      ctx.fillStyle = '#00f2fe';
+      ctx.font = '700 18px "Orbitron", sans-serif';
+      ctx.fillText('🕹️ ' + category.toUpperCase(), 300, 210);
+
+      return canvas.toDataURL('image/png');
+    }
+
+    /* PUBLICATION RÉELLE DE JEU EN BASE */
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentUser) return openAuthModal('login');
+
+      const title = document.getElementById('upload-title').value;
+      const category = document.getElementById('upload-category').value;
+      const description = document.getElementById('upload-desc').value;
+      const game_code = document.getElementById('upload-code').value;
+
+      const cover_image = generateAutoCover(title, category);
+      const author_name = currentUser.user_metadata?.username || currentUser.email.split('@')[0];
+
+      const { error } = await supabase.from('games').insert([{
+        user_id: currentUser.id,
+        title, category, description, game_code, cover_image, author_name
+      }]);
+
+      if (error) {
+        alert("Erreur lors de l'enregistrement : " + error.message);
+      } else {
+        alert("🎉 Jeu enregistré dans la base de données !");
+        document.getElementById('upload-form').reset();
+        loadGames();
+        switchTab('explore');
+      }
+    });
+
+    /* CHARGEMENT DES JEUX SUPABASE */
+    async function loadGames() {
+      if (!supabase) return;
+
+      const { data, error } = await supabase.from('games').select('*').order('created_at', { ascending: false });
+      const games = data || [];
+
+      renderGrid('home-games-grid', games.slice(0, 4));
+      renderGrid('explore-games-grid', games);
+
+      if (currentUser) {
+        renderGrid('my-games-grid', games.filter(g => g.user_id === currentUser.id));
+      } else {
+        renderGrid('my-games-grid', []);
+      }
+    }
+
+    function renderGrid(containerId, list) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      if (!list || list.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-muted); font-size:0.85rem; margin-top:1rem;">Aucun jeu trouvé.</p>`;
+        return;
+      }
+
+      container.innerHTML = list.map(g => `
+        <div class="game-card liquid-glass">
+          <img class="card-thumb" src="${g.cover_image}" alt="${g.title}">
+          <span class="card-category-tag">${g.category}</span>
+          <div class="card-body">
+            <h3 class="card-title">${g.title}</h3>
+            <p class="card-author">par ${g.author_name}</p>
+            <button class="btn-primary" style="width:100%; justify-content:center; margin-top:auto;" onclick="playGameFullscreen('${g.id}')">🎮 Jouer</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* ==========================================================================
+       4. PLEIN ÉCRAN ET NAVIGATION
+       ========================================================================== */
+    async function playGameFullscreen(gameId) {
+      const { data: game } = await supabase.from('games').select('*').eq('id', gameId).single();
+      if (!game) return;
+
+      const playerOverlay = document.getElementById('fullscreen-player');
+      const iframe = document.getElementById('fullscreen-iframe');
+
+      iframe.srcdoc = game.game_code;
+      playerOverlay.classList.add('active');
+
+      if (playerOverlay.requestFullscreen) {
+        playerOverlay.requestFullscreen().catch(() => {});
+      }
+    }
+
+    function exitFullscreenGame() {
+      const playerOverlay = document.getElementById('fullscreen-player');
+      const iframe = document.getElementById('fullscreen-iframe');
+
+      iframe.srcdoc = '';
+      playerOverlay.classList.remove('active');
+
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.nav-btn, .mobile-nav-item').forEach(b => b.classList.remove('active'));
+
+      const target = document.getElementById('tab-' + tabName);
+      if (target) target.classList.add('active');
+
+      document.querySelectorAll('.btn-' + tabName).forEach(b => b.classList.add('active'));
+      window.scrollTo(0, 0);
+    }
+
+    // Démarrage
+    initAuthSession();
+  </script>
+</body>
+</html>
